@@ -1,8 +1,9 @@
 import numpy as np
 
 class Drone:
-    def __init__(self):
-        self.dt = 0.01  # seconds
+    def __init__(self, dt):
+        # timestep
+        self.dt = dt  # seconds
         # initialize time at 0s
         self.time = 0
         
@@ -23,17 +24,30 @@ class Drone:
         # F - thrust
         # Tx, Ty, Tz - torque around each body axis
         self.control_input = np.zeros(4)
+
+        # Control tunings
+        self.kp_xy, self.kd_xy = 0.8, 1.6
+        self.kp_z, self.kd_z = 3.0 ,4.0
+        self.kp_ang, self.kd_ang = 25.0, 10.0
         
+        # All times, states, and control histories for the drone
         self.state_time_history = []
         self.control_time_history = []
         self.time_history = [0.]
         
+        # Flag to see if initial condition is set!
+        self.initial_condition_set = False
+        
     def set_init_condition(self, state):
         self.state = state
         self.state_time_history.append(state)
+        self.initial_condition_set = True
         
     def step_dynamics(self, control_input=None):
         """Wrapper function to step all dynamics by one timestep"""
+        if not self.initial_condition_set:
+            raise ValueError('Initial Condition was never set!')
+        
         # Update internal storage of control input
         if control_input is None:
             control_input = self.spiral_trajectory_controller(R0=0.0)
@@ -73,7 +87,7 @@ class Drone:
         xdot, ydot, zdot = vx, vy, vz
         
         xddot = ((-np.cos(phi) * np.sin(theta) * np.cos(psi) - np.sin(phi) * np.sin(psi)) * F) / self.m
-        yddot = ((-np.cos(phi) * np.sin(theta) * np.sin(psi) - np.sin(phi) * np.cos(psi)) * F) / self.m
+        yddot = -((-np.cos(phi) * np.sin(theta) * np.sin(psi) - np.sin(phi) * np.cos(psi)) * F) / self.m
         zddot = -self.g + (np.cos(phi) * np.cos(theta) * F) / self.m
     
         phidot, thetadot, psidot = p, q, r
@@ -126,30 +140,30 @@ class Drone:
         v_z_des = 0.1 # m/s
         z_des = 10.0 + v_z_des * t
         
-        # Gains & Control Law
-        kp_xy, kd_xy = 0.8, 1.6
-        ax_cmd = kp_xy * (x_des - px) + kd_xy * (x_des_dot - vx)
-        ay_cmd = kp_xy * (y_des - py) + kd_xy * (y_des_dot - vy)
+        # Control Law
+        # Positional controller for spiral shape
+        ax_cmd = self.kp_xy * (x_des - px) + self.kd_xy * (x_des_dot - vx)
+        ay_cmd = self.kp_xy * (y_des - py) + self.kd_xy * (y_des_dot - vy)
+        az_cmd = self.kp_z * (z_des - pz) + self.kd_z * (v_z_des - vz)
         
-        kp_z, kd_z = 3.0 ,4.0
-        az_cmd = kp_z * (z_des - pz) + kd_z * (v_z_des - vz)
-        
-        phi_des = -ay_cmd / self.g
+        # Approximate desired angle based on desired x and y movements
+        phi_des = ay_cmd / self.g
         theta_des = -ax_cmd / self.g
-        F = self.m * (self.g + az_cmd)
         
-        # Limit tilt
-        tilt_lim = 0.35  # 20 deg
+        # Desired thrust
+        Fz = self.m * (self.g + az_cmd)
+        
+        # Limit tilt to 20 degrees or less
+        tilt_lim = np.deg2rad(20) # rad
         phi_des   = np.clip(phi_des,   -tilt_lim, tilt_lim)
         theta_des = np.clip(theta_des, -tilt_lim, tilt_lim)
         
-        kp_ang, kd_ang = 25.0, 10.0
-        Tx = self.J_x * (kp_ang*(phi_des - phi)     + kd_ang*(0.0 - p))
-        Ty = self.J_y * (kp_ang*(theta_des - theta) + kd_ang*(0.0 - q))
+        Tx = self.J_x * (self.kp_ang*(phi_des - phi)     + self.kd_ang*(0.0 - p))
+        Ty = self.J_y * (self.kp_ang*(theta_des - theta) + self.kd_ang*(0.0 - q))
         Tz = 0.0
         
         
-        return np.array([F, Tx, Ty, Tz])
+        return np.array([Fz, Tx, Ty, Tz])
         
         
         
