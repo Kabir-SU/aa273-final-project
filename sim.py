@@ -12,9 +12,9 @@ dt_inv = 100
 leader = Drone(dt=dt)
 
 # Set initial condition (will throw error if no initial condition is set)
-init_state = np.zeros(12)
-init_state[2] = 10.  # set initial z to 10 meters
-leader.set_init_condition(init_state)
+init_state_leader = np.zeros(12)
+init_state_leader[2] = 20.  # set initial z to 10 meters
+leader.set_init_condition(init_state_leader)
 
 # Sim parameters
 sim_time = 50  # seconds
@@ -36,15 +36,15 @@ leader_controls = leader.get_control_history()
 fig, axs = plt.subplots(3, 3, figsize=(12, 8), sharex=True)
 
 # POSITIONS PLOTS
-axs[0, 0].plot(leader_times, leader_states[:, 0])
+axs[0, 0].plot(leader_times, leader_states[:, 0], label='Leader')
 axs[0, 0].set_ylabel('X (m)')
 axs[0, 0].grid()
 
-axs[1, 0].plot(leader_times, leader_states[:, 1])
+axs[1, 0].plot(leader_times, leader_states[:, 1], label='Leader')
 axs[1, 0].set_ylabel('Y (m)')
 axs[1, 0].grid()
 
-axs[2, 0].plot(leader_times, leader_states[:, 2])
+axs[2, 0].plot(leader_times, leader_states[:, 2], label='Leader')
 axs[2, 0].set_ylabel('Z (m)')
 axs[2, 0].set_xlabel('Time (s)')
 axs[2, 0].grid()
@@ -80,7 +80,7 @@ plt.tight_layout()
 
 # 2D Aerial View
 plt.figure()
-plt.plot(leader_states[:,0], leader_states[:,1])
+plt.plot(leader_states[:,0], leader_states[:,1], label='Leader')
 plt.xlabel("x (m)")
 plt.ylabel("y (m)")
 plt.axis("equal")
@@ -89,7 +89,7 @@ plt.grid()
 # 3D Plot
 fig3 = plt.figure(figsize=(8,6))
 ax = fig3.add_subplot(111, projection='3d')
-ax.plot(leader_states[:,0], leader_states[:,1], leader_states[:, 2])
+ax.plot(leader_states[:,0], leader_states[:,1], leader_states[:, 2], label='Leader')
 ax.set_xlabel('X (m)')
 ax.set_ylabel('Y (m)')
 ax.set_zlabel('Z (m)')

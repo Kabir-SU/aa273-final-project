@@ -38,9 +38,13 @@ class Drone:
         # Flag to see if initial condition is set!
         self.initial_condition_set = False
         
+        # Initial x,y,z for controller reference
+        self.init_pos = np.zeros(3)
+        
     def set_init_condition(self, state):
         self.state = state
         self.state_time_history.append(state)
+        self.init_pos = state[:3]
         self.initial_condition_set = True
         
     def step_dynamics(self, control_input=None):
@@ -120,6 +124,7 @@ class Drone:
         vx, vy, vz = self.state[3:6]
         phi, theta, psi = self.state[6:9]
         p, q, r = self.state[9:12]
+        x_init, y_init, z_init = self.init_pos
         
         # radius growth rate
         k = 0.02 # m/s
@@ -129,8 +134,8 @@ class Drone:
         psi = omega * t
         
         # Desired X and Y
-        x_des = R_new * np.cos(psi)
-        y_des = R_new * np.sin(psi)
+        x_des = R_new * np.cos(psi) + x_init
+        y_des = R_new * np.sin(psi) + y_init
         
         # Desired X and Y vels
         x_des_dot = k * np.cos(psi) -R_new * omega * np.sin(psi)
@@ -138,7 +143,7 @@ class Drone:
         
         # Ascend Rate
         v_z_des = 0.1 # m/s
-        z_des = 10.0 + v_z_des * t
+        z_des = z_init + v_z_des * t
         
         # Control Law
         # Positional controller for spiral shape
