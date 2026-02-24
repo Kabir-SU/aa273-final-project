@@ -76,6 +76,7 @@ def plot_3d_trajectory_all_drones(drones, labels):
     return fig
 
 def plot_aerial_view(drones, labels):
+    """Plots Aerial view of all drones provided."""
     size = len(drones)
     
     fig = plt.figure()

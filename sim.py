@@ -47,14 +47,9 @@ for i in range(num_steps):
 ####################################################################
 ##############              PLOTTING BELOW           ###############
 ####################################################################
-# Extract states from drone
-leader_states = leader.get_state_time_history()
-leader_times = leader.get_times()
-leader_controls = leader.get_control_history()
+# All plotting tools should just take the drone objects as inputs!
 
-follower_1_states = follower_1.get_state_time_history()
-follower_2_states = follower_2.get_state_time_history()
-
+# All States and Controls Plots!
 fig1 = utils.plot_states_and_controls(leader, title='Leader Drone')
 # fig2 = utils.plot_states_and_controls(leader, title='Follower 1 Drone')
 # fig3 = utils.plot_states_and_controls(leader, title='Follower 2 Drone')
