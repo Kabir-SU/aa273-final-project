@@ -90,3 +90,9 @@ def plot_aerial_view(drones, labels):
     plt.tight_layout()
     plt.legend()
     plt.grid()
+
+def plot_measurement_links(ax, observer_pos, target_pos, label=None, color='gray'):
+    """
+    Draws a dashed line representing the range/bearing measurement link.
+    """
+    ax.plot([observer_pos[0], target_pos[0]], [observer_pos[1], target_pos[1]], [observer_pos[2], target_pos[2]], color=color, linestyle='--', alpha=0.6, label=label)
