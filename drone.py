@@ -41,6 +41,12 @@ class Drone:
         # Initial x,y,z for controller reference
         self.init_pos = np.zeros(3)
         
+        # Actuator noise (1-sigma)
+        self.sig_F = 0.5    # N  (thrust noise)
+        self.sig_Tx = 0.2   # N*m
+        self.sig_Ty = 0.2   # N*m
+        self.sig_Tz = 0.025   # N*m
+        
     def set_init_condition(self, state):
         self.state = state
         self.state_time_history.append(state)
@@ -48,25 +54,28 @@ class Drone:
         self.initial_condition_set = True
         
     def step_dynamics(self, control_input=None):
-        """Wrapper function to step all dynamics by one timestep"""
         if not self.initial_condition_set:
             raise ValueError('Initial Condition was never set!')
-        
-        # Update internal storage of control input
+
         if control_input is None:
             control_input = self.spiral_trajectory_controller(R0=0.0)
         
-        self.control_input = control_input
+        control_input[0] += np.random.randn() * self.sig_F
+        control_input[1] += np.random.randn() * self.sig_Tx
+        control_input[2] += np.random.randn() * self.sig_Ty
+        control_input[3] += np.random.randn() * self.sig_Tz
         
-        # Check to make sure thrust can't be negative (unphysical)
-        if control_input[0] < 0:
+        self.control_input = control_input.copy()
+
+        if self.control_input[0] < 0:
             self.control_input[0] = 0.
+
+        self.control_time_history.append(self.control_input.copy())
+
+        self.state = self.rk4(self.dydt) 
         
-        self.control_time_history.append(self.control_input)
-        # Forward propagate using rk4
-        self.state = self.rk4(self.dydt)
-        self.state_time_history.append(self.state)
-        # Add time
+        self.state_time_history.append(self.state.copy())
+
         self.time += self.dt
         self.time_history.append(self.time)
         
@@ -127,10 +136,10 @@ class Drone:
         x_init, y_init, z_init = self.init_pos
         
         # radius growth rate
-        k = 0.02 # m/s
+        k = .5 # m/s
         R_new = R0 + k*t
         
-        omega = 0.6 # rad/s (spin rate)
+        omega = 0.4 # rad/s (spin rate)
         psi = omega * t
         
         # Desired X and Y
@@ -159,9 +168,9 @@ class Drone:
         Fz = self.m * (self.g + az_cmd)
         
         # Limit tilt to 20 degrees or less
-        tilt_lim = np.deg2rad(20) # rad
-        phi_des   = np.clip(phi_des,   -tilt_lim, tilt_lim)
-        theta_des = np.clip(theta_des, -tilt_lim, tilt_lim)
+        # tilt_lim = np.deg2rad(20) # rad
+        # phi_des   = np.clip(phi_des,   -tilt_lim, tilt_lim)
+        # theta_des = np.clip(theta_des, -tilt_lim, tilt_lim)
         
         Tx = self.J_x * (self.kp_ang*(phi_des - phi)     + self.kd_ang*(0.0 - p))
         Ty = self.J_y * (self.kp_ang*(theta_des - theta) + self.kd_ang*(0.0 - q))

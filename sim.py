@@ -6,6 +6,8 @@ from measurementmodel import MeasurementModel
 from drone import Drone
 import utils
 
+np.random.seed(273)
+
 # Set timestep
 dt = 0.01
 dt_inv = 100
