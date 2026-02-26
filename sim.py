@@ -49,8 +49,10 @@ meas_links_f2 = []
 # Simulation loop
 for i in range(num_steps):
     leader.step_dynamics()
-    follower_1.step_dynamics()
-    follower_2.step_dynamics()
+    # follower_1.step_dynamics()
+    # follower_2.step_dynamics()
+    follower_1.step_dynamics(control_input=follower_1.random_walk_controller())
+    follower_2.step_dynamics(control_input=follower_2.random_walk_controller())
     
     z_leader = meas_model.get_relative_measurement(leader.state, landmark_pos, add_noise=True)
     z_follower_1 = meas_model.get_relative_measurement(follower_1.state, leader.state[:3], add_noise=True)

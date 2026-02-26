@@ -170,5 +170,57 @@ class Drone:
         
         return np.array([Fz, Tx, Ty, Tz])
         
+    def random_walk_controller(self):
+        if not hasattr(self, 'rw_target_vel'):
+            self.rw_target_vel = np.zeros(2)
+            self.rw_last_update = -1.0
+            self.rw_des_pos = np.array(self.init_pos[:2])
+
+        t = self.time
+        px, py, pz = self.state[:3]
+        vx, vy, vz = self.state[3:6]
+        phi, theta, psi = self.state[6:9]
+        p, q, r = self.state[9:12]
+        x_init, y_init, z_init = self.init_pos
         
+        # update target velocity every 2 seconds
+        if t - self.rw_last_update >= 2.0:
+            new_vel = np.random.randn(2) * 1.0 # 1.0 m/s std
+            self.rw_target_vel = 0.7 * self.rw_target_vel + 0.3 * new_vel
+            self.rw_last_update = t
+            
+            # bounded random walk
+            dist = np.linalg.norm(self.rw_des_pos - self.init_pos[:2])
+            if dist > 30.0:
+                direction = self.init_pos[:2] - self.rw_des_pos
+                self.rw_target_vel = (direction / np.linalg.norm(direction)) * 2.0
+                
+        x_des_dot, y_des_dot = self.rw_target_vel
+        self.rw_des_pos += self.rw_target_vel * self.dt
+        
+        x_des, y_des = self.rw_des_pos
+        
+        # Ascend Rate
+        v_z_des = 0.1 # m/s
+        z_des = z_init + v_z_des * t
+        
+        # Control Law
+        ax_cmd = self.kp_xy * (x_des - px) + self.kd_xy * (x_des_dot - vx)
+        ay_cmd = self.kp_xy * (y_des - py) + self.kd_xy * (y_des_dot - vy)
+        az_cmd = self.kp_z * (z_des - pz) + self.kd_z * (v_z_des - vz)
+        
+        phi_des = ay_cmd / self.g
+        theta_des = -ax_cmd / self.g
+        
+        Fz = self.m * (self.g + az_cmd)
+        
+        tilt_lim = np.deg2rad(20)
+        phi_des   = np.clip(phi_des,   -tilt_lim, tilt_lim)
+        theta_des = np.clip(theta_des, -tilt_lim, tilt_lim)
+        
+        Tx = self.J_x * (self.kp_ang*(phi_des - phi)     + self.kd_ang*(0.0 - p))
+        Ty = self.J_y * (self.kp_ang*(theta_des - theta) + self.kd_ang*(0.0 - q))
+        Tz = 0.0
+        
+        return np.array([Fz, Tx, Ty, Tz])
         
