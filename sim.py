@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D 
 from measurementmodel import MeasurementModel
+from dead_reckoning import DeadReckon
 
 from drone import Drone
 import utils
@@ -77,10 +78,51 @@ for i in range(num_steps):
         meas_links_leader.append((leader.state[:3].copy(), landmark_pos))
         meas_links_f1.append((follower_1.state[:3].copy(), leader.state[:3].copy()))
         meas_links_f2.append((follower_2.state[:3].copy(), leader.state[:3].copy()))
-
+        
 gyro_history_leader = np.array(gyro_history_leader)
 gyro_history_f1 = np.array(gyro_history_f1)
 gyro_history_f2 = np.array(gyro_history_f2)
+
+####################################################################
+##############      ATTITUDE DEAD RECKON BELOW       ###############
+####################################################################
+# Initialize dead reckon class
+dead_reckon = DeadReckon(np.zeros(3), np.zeros(3))
+# Feed gyro measurements to get attitude history
+for i in range(num_steps):
+    gyro_meas = gyro_history_leader[i]
+    dead_reckon.step(gyro_meas)
+
+# Plot dead reckon results
+times = leader.get_times()
+true_states = leader.get_state_time_history()
+dead_reckon_time_hist = dead_reckon.get_time_hist()
+
+labels = ['phi', 'theta', 'psi', 'p', 'q', 'r']
+
+fig, axs = plt.subplots(3, 2, figsize=(10, 8), sharex=True)
+
+for i, ax in enumerate(axs.flat):
+    ax.plot(times, dead_reckon_time_hist[:, i], label='Dead Reckoning')
+    ax.plot(times, true_states[:, 6 + i], label='True')
+    ax.set_title(labels[i])
+    ax.grid(True)
+
+axs[0,0].legend()
+
+plt.tight_layout()
+
+
+####################################################################
+##############      CONSENSUS FILTER IMPLEMENT       ###############
+####################################################################
+times = leader.get_times()
+true_states = leader.get_state_time_history()
+dead_reckon_time_hist = dead_reckon.get_time_hist()
+
+# TODO!!!!
+    
+
 
 ####################################################################
 ##############              PLOTTING BELOW           ###############
@@ -118,14 +160,9 @@ axs_gyro[2].legend()
 axs_gyro[2].grid(True)
 
 # All States and Controls Plots!
-fig1 = utils.plot_states_and_controls(leader, title='Leader Drone')
+# fig1 = utils.plot_states_and_controls(leader, title='Leader Drone')
 # fig2 = utils.plot_states_and_controls(leader, title='Follower 1 Drone')
 # fig3 = utils.plot_states_and_controls(leader, title='Follower 2 Drone')
-
-fig_2d = utils.plot_aerial_view(
-    [leader, follower_1, follower_2], 
-    ['Leader', 'Follower 1', 'Follower 2']
-)
 
 # 3D Plot
 fig_3d = utils.plot_3d_trajectory_all_drones(
