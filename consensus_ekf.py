@@ -20,11 +20,50 @@ class ConsensusEKF:
         self.num_states = 6 + 9*num_targets
         
         self.R = np.eye(6) # TODO: Assign actual values
-        self.Q = np.eye(24) # TODO: Assign actual values
+        self.R = np.diag([0.01, np.deg2rad(0.1)**2, np.deg2rad(0.1)**2, 0.01, np.deg2rad(0.1)**2, np.deg2rad(0.1)**2])
+        self.Q = np.eye(9) # TODO: Process noise vector has 9 elements (3 for own drone, 3 for each target)
         
         self.state_est_time_hist = [init_mu]
         self.cov_est_time_hist = [init_cov]
-            
+        
+        # Precompute constant Jacobians
+        self.A = self.get_dynamics_jacobian()
+        self.B = self.get_noise_mapping_matrix()
+
+    def landmark_measurement_model(self, state, landmark_pos=np.array([0, 0, 0])):
+        """Calculates r, az, el relative to a specific stationary landmark"""
+        # Extract drone position from state
+        px, py, pz = state[0], state[2], state[4]
+        
+        # Explicitly calculate the difference vector
+        dx = landmark_pos[0] - px
+        dy = landmark_pos[1] - py
+        dz = landmark_pos[2] - pz
+
+        r = np.sqrt(dx**2 + dy**2 + dz**2) 
+        return r, dx, dy, dz
+
+    def get_landmark_jacobian(self, state, landmark_pos=np.array([0, 0, 0])):
+        """Jacobian mapping drone position to landmark measurements"""
+        px, py, pz = state[0], state[2], state[4]
+        dx = landmark_pos[0] - px
+        dy = landmark_pos[1] - py
+        dz = landmark_pos[2] - pz
+        
+        r = np.linalg.norm([dx, dy, dz])
+        s = np.linalg.norm([dx, dy]) # horizontal distance
+        
+        H_L = np.zeros((3, self.num_states))
+        # Range derivatives
+        H_L[0, 0:6:2] = [-dx/r, -dy/r, -dz/r] 
+        # Azimuth derivatives
+        H_L[1, 0:3:2] = [dy/s**2, -dx/s**2]
+        # Elevation derivatives
+        H_L[2, 0:6:2] = [dx*dz/(r**2*s), dy*dz/(r**2*s), -s/r**2]
+        
+        return H_L
+
+
     def get_dynamics_jacobian(self):
         """Dynamics Jacobian used for covariance propagation"""
         # Form drone block
@@ -72,8 +111,9 @@ class ConsensusEKF:
     
     def get_unoptimal_consensus_gain(self, cov):
         """Returns the non_optimal consensus gain"""
+        gamma = 0.1
         eps = self.dt
-        return eps / (1 + np.linalg.norm(cov)) * cov
+        return gamma * ((eps * cov) / (1 + np.linalg.norm(cov)))
     
     def dynamics(self, state, attitude_state, control):
         """Dyanmics function used in predict step
@@ -130,16 +170,21 @@ class ConsensusEKF:
     
     def measurements(self, state, attitude_state):
         theta, psi = attitude_state[1:3]
+        px, py, pz = state[0], state[2], state[4]
         target_states = [state[6:15], state[15:]]
         
         meas = np.zeros(3*self.num_targets)
         for target_idx in range(self.num_targets):
             target = target_states[target_idx]
             
-            x_rel, y_rel, z_rel = target[0], target[3], target[6]
-            pos = np.array([x_rel, y_rel, z_rel])
+            # Target blocks are 9 elements: x, x_dot, x_ddot, y, y_dot, y_ddot, z, z_dot, z_ddot
+            # NOT x, x, x... they are structured by dimension [x, vx, ax, y, vy, ay, z, vz, az]
+            x_rel = target[0] - px
+            y_rel = target[3] - py
+            z_rel = target[6] - pz
             
-            r = np.linalg.norm(pos)
+            eps = 1e-8
+            r = np.linalg.norm([x_rel, y_rel, z_rel]) + eps
             az = np.atan2(y_rel, x_rel) - psi
             el = np.arcsin(z_rel / r) - theta
             
@@ -149,28 +194,43 @@ class ConsensusEKF:
     
     def get_measurement_jacobian(self, state):
         H = np.zeros((3*self.num_targets, self.num_states))
+        px, py, pz = state[0], state[2], state[4]
         target_states = [state[6:15], state[15:]]
         for i in range(self.num_targets):
             target = target_states[i]
-            x = target[0]
-            y = target[3]
-            z = target[6]
+
+            # Corrected for relative measurements
+            dx = target[0] - px
+            dy = target[3] - py
+            dz = target[6] - pz
             
-            r = np.linalg.norm([x, y, z])
-            s = np.linalg.norm([x, y])
+            eps = 1e-8
+            r = np.linalg.norm([dx, dy, dz]) + eps
+            s = np.linalg.norm([dx, dy]) + eps
             
             target_block = np.array([
-                [x/r, 0., 0., y/r, 0., 0., z/r, 0., 0.],
-                [-y / s**2, 0., 0., x / s**2, 0., 0., 0., 0., 0.],
-                [-x*z / (r**2 * s), 0., 0., -y*z / (r**2 * s), 0., 0., s / r**2, 0., 0.],
+                [dx/r, 0., 0., dy/r, 0., 0., dz/r, 0., 0.],
+                [-dy / s**2, 0., 0., dx / s**2, 0., 0., 0., 0., 0.],
+                [-dx*dz / (r**2 * s), 0., 0., -dy*dz / (r**2 * s), 0., 0., s / r**2, 0., 0.],
             ])
             
             H[3*i:3*i + 3, 6 + 9*i: 6 + 9*(i+1)] = target_block
             
+            drone_block = np.array([
+                [-dx/r, 0., -dy/r, 0., -dz/r, 0.],
+                [dy / s**2, 0., -dx / s**2, 0., 0., 0.],
+                [dx*dz / (r**2 * s), 0., dy*dz / (r**2 * s), 0., -s / r**2, 0.],
+            ])
+            # The drone position states are 0(px), 2(py), 4(pz). The drone_block assumes they are contiguous 0,1,2.
+            # We must assign them properly.
+            H[3*i:3*i + 3, 0] = drone_block[:, 0]  # px
+            H[3*i:3*i + 3, 2] = drone_block[:, 2]  # py
+            H[3*i:3*i + 3, 4] = drone_block[:, 4]  # pz
+            
         return H
             
     
-    def step(self, y, neighbor_ests, attitude_state, control):
+    def step(self, y, neighbor_ests, attitude_state, control, y_landmark=None):
         """Consesus filter step function
         
         The consensus filter operates slightly different to a standard EKF/KF, which
@@ -187,22 +247,41 @@ class ConsensusEKF:
         """
         x_bar_prior = self.prior_state
         sigma_bar_prior = self.prior_cov
-        
+
+        if y_landmark is not None:
+            HL = self.get_landmark_jacobian(x_bar_prior)
+            RL = np.diag([0.01, 0.001, 0.001])
+            K_L = sigma_bar_prior @ HL.T @ np.linalg.inv(HL @ sigma_bar_prior @ HL.T + RL)
+            r_l, dx, dy, dz = self.landmark_measurement_model(x_bar_prior)
+            z_l_pred = np.array([r_l, np.arctan2(dy, dx) - attitude_state[2], np.arcsin(dz/r_l) - attitude_state[1]])
+            
+            # Update the prior state with absolute truth
+            x_bar_prior = x_bar_prior + K_L @ (y_landmark - z_l_pred)
+            sigma_bar_prior = (np.eye(self.num_states) - K_L @ HL) @ sigma_bar_prior
+            
         # Following Paper's notation generally for suboptimal Consensus Implmentation
         R = self.R
         Q = self.Q
         
         # Masurement jacobian
         H = self.get_measurement_jacobian(x_bar_prior)
-        # Consensus Gain
-        C = self.get_unoptimal_consensus_gain(sigma_bar_prior)
-        # Measurement Prior
-        Hx = self.measurements(x_bar_prior, attitude_state)
-        
         # Kalman Gain
         K = sigma_bar_prior @ H.T @ np.linalg.inv(R + H @ sigma_bar_prior @ H.T)
+        # Measurement Prior
+        Hx = self.measurements(x_bar_prior, attitude_state)
+
+        # Splitting up local/global state estimates for now
+        x_post_local = x_bar_prior + K @ (y - Hx)
+
+        # Consensus Gain
+        C = self.get_unoptimal_consensus_gain(sigma_bar_prior)
+
+        consensus_corr = np.zeros(self.num_states)
+        for xj in neighbor_ests:
+            consensus_corr += (xj - x_bar_prior)
+        
         # State Estimate
-        x_hat = x_bar_prior + K @ (y - Hx) + C @ np.sum([(xj - x_bar_prior) for xj in neighbor_ests], axis=0)
+        x_hat = x_post_local + C @ consensus_corr
         self.state_est = x_hat
         
         # Unsure what F is frankly it's in the paper though
@@ -212,9 +291,9 @@ class ConsensusEKF:
         self.cov_est = M
         
         # Dynamics Jacobian
-        A = self.get_dynamics_jacobian()
+        A = self.A
         # Noise Mapping matrix
-        B = self.get_noise_mapping_matrix()
+        B = self.B
         # The next timestep's prior covariance
         P_bar_post = A @ M @ A.T + B @ Q @ B.T
         # The next timestep's prior state estimate
@@ -232,4 +311,3 @@ class ConsensusEKF:
     
     def get_cov_est_time_hist(self):
         return np.array(self.cov_est_time_hist)
-        
