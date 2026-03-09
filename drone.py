@@ -32,7 +32,7 @@ class Drone:
         
         # All times, states, and control histories for the drone
         self.state_time_history = []
-        self.control_time_history = []
+        self.control_time_history = [self.control_input]
         self.time_history = [0.]
         
         # Flag to see if initial condition is set!

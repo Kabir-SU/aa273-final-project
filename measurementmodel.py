@@ -5,6 +5,7 @@ class MeasurementModel:
         self.R = np.diag([range_std**2, np.deg2rad(angle_std)**2, np.deg2rad(angle_std)**2])
         self.R_gyro = np.diag([gyro_std**2, gyro_std**2, gyro_std**2])
         self.gyro_bias = np.array([0.001, -0.002, 0.001]) # small static bias
+        self.altimeter_sigma = 0.1 # meters of std
 
     def get_relative_measurement(self, observer_state, target_pos, add_noise=False):
         px, py, pz = observer_state[0:3]
@@ -34,3 +35,12 @@ class MeasurementModel:
             gyro_meas = gyro_true + self.gyro_bias 
             
         return gyro_meas
+    
+    def get_altimeter_measurement(self, state, add_noise=False):
+        true_z = state[2]
+        
+        alt_meas = true_z
+        if add_noise:
+            alt_meas = true_z + np.random.normal(0, self.altimeter_sigma)
+            
+        return alt_meas
