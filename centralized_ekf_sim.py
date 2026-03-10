@@ -291,3 +291,44 @@ utils.plot_drone_trajectory_3d(
 )
 
 plt.show()
+
+
+####################################################################
+##############              NEES and RMSE            ###############
+####################################################################
+''' We have true_states_leader, true_states_follower_1, and true_states_follower_2 which are
+np arrays of the true states in the trajectory. mu_hist contains the estimated state (position and 
+velocity) of the three drones. NEES will be calculated over the full state (per drone), and RMSE 
+will be calculated separately for position and velocity.
+    '''
+from scipy.stats import chi2
+def plot_metrics(true_state_12, est_state_6, cov_history_6x6, drone):
+    num_estimates = est_state_6.shape[0]
+    true_state_6 = true_state_12[:num_estimates, :6]
+    errors = true_state_6 - est_state_6
+    pos_error_sq = np.sum(errors[:, :3]**2, axis=1)
+    vel_error_sq = np.sum(errors[:, 3:6]**2, axis=1)  
+    rmse_p = np.sqrt(np.mean(pos_error_sq))
+    rmse_v = np.sqrt(np.mean(vel_error_sq))
+    print(f"{drone}: Position RMSE = {rmse_p:.4f} m, Velocity RMSE = {rmse_v:.4f} m/s")
+
+    nees_hist = []
+    for k in range(len(true_state_6)):
+        nees = errors[k] @ np.linalg.solve(cov_history_6x6[k], errors[k])
+        nees_hist.append(nees)
+
+    plt.figure()
+    plt.plot(times[:len(nees_hist)], nees_hist, label = 'NEES')
+    plt.axhline(y=6, color='g', linestyle='--', label='Expected Value (6)')
+    plt.axhline(y=chi2.ppf(0.975, df=6), color='r', linestyle=':', label='95% Upper Bound')
+    plt.axhline(y=chi2.ppf(0.025, df=6), color='b', linestyle=':', label='95% Lower Bound')
+    plt.title(f"{drone} Normalized Estimation Error Squared vs Time for Position and Velocity")
+    plt.xlabel("Time (s)")
+    plt.ylabel("NEES score")
+    plt.legend()
+    plt.grid(True)
+    plt.show()
+
+plot_metrics(true_states_follower_1, mu_hist[:, 6:12], P_hist[:, 6:12, 6:12], "Follower 1")
+plot_metrics(true_states_follower_2, mu_hist[:, 12:18], P_hist[:, 12:18, 12:18], "Follower 2")
+plot_metrics(true_states_leader, mu_hist[:, 0:6], P_hist[:, 0:6, 0:6], "Leader")
