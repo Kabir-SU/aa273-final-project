@@ -209,20 +209,7 @@ def plot_measurement_links(ax, observer_pos, target_pos, label=None, color='gray
 
 def plot_drone_ekf_diagnostics(times, mu_hist_drone, P_hist_drone, truth_hist_drone, drone_name="Drone"):
     """
-    Plot EKF estimate vs truth with ±3σ bounds, and position error with ±3σ, for a single drone.
-
-    Parameters
-    ----------
-    times : array-like, shape (T,)
-        Time vector.
-    mu_hist_drone : array-like, shape (T, 6)
-        Estimated state history for one drone: [x, y, z, vx, vy, vz].
-    P_hist_drone : array-like, shape (T, 6, 6)
-        Covariance history for that same drone state block.
-    truth_hist_drone : array-like, shape (T, >=6)
-        True state history for one drone. First 6 entries must be [x, y, z, vx, vy, vz].
-    drone_name : str
-        Label for plot titles.
+    Plot EKF estimate vs truth with ±3 sigma bounds, and position error with ±3 sigma, for a single drone.
     """
     mu_hist_drone = np.asarray(mu_hist_drone)
     P_hist_drone = np.asarray(P_hist_drone)
@@ -300,17 +287,6 @@ def plot_drone_ekf_diagnostics(times, mu_hist_drone, P_hist_drone, truth_hist_dr
 def plot_drone_trajectory_3d(times, mu_hist_drone, truth_hist_drone, landmark_pos, drone_name="Drone"):
     """
     Plot 3D trajectory of estimated vs true position for a single drone.
-
-    Parameters
-    ----------
-    times : array-like, shape (T,)
-        Time vector. Only used for length matching.
-    mu_hist_drone : array-like, shape (T, 6) or (T, >=3)
-        Estimated state history for one drone. First 3 entries must be [x, y, z].
-    truth_hist_drone : array-like, shape (T, >=3)
-        True state history for one drone. First 3 entries must be [x, y, z].
-    drone_name : str
-        Label for title/legend.
     """
     mu_hist_drone = np.asarray(mu_hist_drone)
     truth_hist_drone = np.asarray(truth_hist_drone)
