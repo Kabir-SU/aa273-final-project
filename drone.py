@@ -1,3 +1,5 @@
+# DRONE DYNAMICS SIMULATION CLASS
+
 import numpy as np
 
 class Drone:

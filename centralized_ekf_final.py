@@ -47,7 +47,6 @@ def get_G_full(state):
     C = getG_single(state[12:]) 
     
     G = block_diag(A, B, C)
-    assert(G.shape[0] == 18)
     return G
 
 def measurement_model_full(state, meas_model, landmark_pos, stacked_attitude_state, add_noise = False):

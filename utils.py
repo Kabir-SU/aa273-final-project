@@ -1,6 +1,115 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from drone import Drone
+from matplotlib.animation import FuncAnimation, PillowWriter
+
+def make_drone_gif(
+    drones,
+    labels,
+    landmark_pos=None,
+    gif_name='drone_sim.gif',
+    fps=20,
+    step=10
+):
+    """
+    Create a GIF of multiple drones moving in 3D, leaving full trajectory behind.
+    """
+    histories = [np.asarray(drone.get_state_time_history()) for drone in drones]
+
+    N = min(len(h) for h in histories)
+    histories = [h[:N] for h in histories]
+
+    frame_idx = np.arange(0, N, step)
+    if frame_idx[-1] != N - 1:
+        frame_idx = np.append(frame_idx, N - 1)
+
+    all_xyz = np.vstack([h[:, :3] for h in histories])
+    if landmark_pos is not None:
+        all_xyz = np.vstack([all_xyz, np.asarray(landmark_pos).reshape(1, 3)])
+
+    x_min, y_min, z_min = np.min(all_xyz, axis=0)
+    x_max, y_max, z_max = np.max(all_xyz, axis=0)
+
+    pad_x = max(1.0, 0.1 * (x_max - x_min + 1e-6))
+    pad_y = max(1.0, 0.1 * (y_max - y_min + 1e-6))
+    pad_z = max(1.0, 0.1 * (z_max - z_min + 1e-6))
+
+    fig = plt.figure(figsize=(8, 6))
+    ax = fig.add_subplot(111, projection='3d')
+
+    ax.set_xlim(x_min - pad_x, x_max + pad_x)
+    ax.set_ylim(y_min - pad_y, y_max + pad_y)
+    ax.set_zlim(z_min - pad_z, z_max + pad_z)
+
+    ax.set_xlabel('X (m)')
+    ax.set_ylabel('Y (m)')
+    ax.set_zlabel('Z (m)')
+    ax.set_title('3D Drone Simulation')
+
+    try:
+        ax.set_box_aspect([
+            (x_max - x_min + 2 * pad_x),
+            (y_max - y_min + 2 * pad_y),
+            (z_max - z_min + 2 * pad_z)
+        ])
+    except Exception:
+        pass
+
+    if landmark_pos is not None:
+        landmark_pos = np.asarray(landmark_pos)
+        ax.scatter(
+            landmark_pos[0], landmark_pos[1], landmark_pos[2],
+            color='red', marker='X', s=100, label='Landmark'
+        )
+
+    lines = []
+    points = []
+    for label in labels:
+        line, = ax.plot([], [], [], label=label)
+        point, = ax.plot([], [], [], marker='o', linestyle='None')
+        lines.append(line)
+        points.append(point)
+
+    ax.legend()
+
+    def init():
+        for line, point in zip(lines, points):
+            line.set_data([], [])
+            line.set_3d_properties([])
+            point.set_data([], [])
+            point.set_3d_properties([])
+        return lines + points
+
+    def update(frame_number):
+        k = frame_idx[frame_number]
+
+        for hist, line, point in zip(histories, lines, points):
+            x = hist[:k+1, 0]
+            y = hist[:k+1, 1]
+            z = hist[:k+1, 2]
+
+            line.set_data(x, y)
+            line.set_3d_properties(z)
+
+            point.set_data([hist[k, 0]], [hist[k, 1]])
+            point.set_3d_properties([hist[k, 2]])
+
+        return lines + points
+
+    anim = FuncAnimation(
+        fig,
+        update,
+        frames=len(frame_idx),
+        init_func=init,
+        interval=1000 / fps,
+        blit=False
+    )
+
+    writer = PillowWriter(fps=fps)
+    anim.save(gif_name, writer=writer)
+    plt.close(fig)
+
+    print(f"Saved GIF to {gif_name}")
 
 def plot_states_and_controls(drone: Drone, title='Leader Drone'):
     """Plots the states and controls for a single drone in a 9 by 9 grid"""
@@ -188,7 +297,7 @@ def plot_drone_ekf_diagnostics(times, mu_hist_drone, P_hist_drone, truth_hist_dr
     fig2.tight_layout(rect=[0, 0, 1, 0.96])
     
 
-def plot_drone_trajectory_3d(times, mu_hist_drone, truth_hist_drone, drone_name="Drone"):
+def plot_drone_trajectory_3d(times, mu_hist_drone, truth_hist_drone, landmark_pos, drone_name="Drone"):
     """
     Plot 3D trajectory of estimated vs true position for a single drone.
 
@@ -217,6 +326,7 @@ def plot_drone_trajectory_3d(times, mu_hist_drone, truth_hist_drone, drone_name=
     ax.plot(est[:, 0], est[:, 1], est[:, 2], '--', label='Estimate', linewidth=2)
 
     ax.scatter(truth[0, 0], truth[0, 1], truth[0, 2], marker='o', s=50, label='True Start')
+    ax.scatter(landmark_pos[0], landmark_pos[1], landmark_pos[2], marker='x', s=50, label='Landmark')
 
     ax.set_title(f"{drone_name} 3D Trajectory: Truth vs Estimate")
     ax.set_xlabel("x")

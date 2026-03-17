@@ -296,25 +296,70 @@ utils.plot_drone_ekf_diagnostics(
     drone_name="Follower 2"
 )
 
-utils.plot_drone_trajectory_3d(
-    times_m,
-    leader_hist,
-    ts_m,
-    drone_name="Leader"
-)
+# utils.plot_drone_trajectory_3d(
+#     times_m,
+#     leader_hist,
+#     ts_m,
+#     landmark_pos,
+#     drone_name="Leader"
+# )
 
-utils.plot_drone_trajectory_3d(
-    times_m,
-    follower_1_hist,
-    ts_f1,
-    drone_name="Follower 1"
-)
+# utils.plot_drone_trajectory_3d(
+#     times_m,
+#     follower_1_hist,
+#     ts_f1,
+#     landmark_pos,
+#     drone_name="Follower 1"
+# )
 
-utils.plot_drone_trajectory_3d(
-    times_m,
-    follower_2_hist,
-    ts_f2,
-    drone_name="Follower 2"
-)
+# utils.plot_drone_trajectory_3d(
+#     times_m,
+#     follower_2_hist,
+#     ts_f2,
+#     landmark_pos,
+#     drone_name="Follower 2"
+# )
+
+
+
+
+####################################################################
+##############              NEES and RMSE            ###############
+####################################################################
+''' We have true_states_leader, true_states_follower_1, and true_states_follower_2 which are
+np arrays of the true states in the trajectory. mu_hist contains the estimated state (position and 
+velocity) of the three drones. NEES will be calculated over the full state (per drone), and RMSE 
+will be calculated separately for position and velocity.
+    '''
+from scipy.stats import chi2
+def plot_metrics(true_state_12, est_state_6, cov_history_6x6, drone):
+    num_estimates = est_state_6.shape[0]
+    true_state_6 = true_state_12[:num_estimates, :6]
+    errors = true_state_6 - est_state_6
+    pos_error_sq = np.sum(errors[:, :3]**2, axis=1)
+    vel_error_sq = np.sum(errors[:, 3:6]**2, axis=1)  
+    rmse_p = np.sqrt(np.mean(pos_error_sq))
+    rmse_v = np.sqrt(np.mean(vel_error_sq))
+    print(f"{drone}: Position RMSE = {rmse_p:.4f} m, Velocity RMSE = {rmse_v:.4f} m/s")
+
+    nees_hist = []
+    for k in range(len(true_state_6)):
+        nees = errors[k] @ np.linalg.solve(cov_history_6x6[k], errors[k])
+        nees_hist.append(nees)
+
+    plt.figure()
+    plt.plot(times[:len(nees_hist)], nees_hist, label = 'NEES')
+    plt.axhline(y=6, color='g', linestyle='--', label='Expected Value (6)')
+    plt.axhline(y=chi2.ppf(0.975, df=6), color='r', linestyle=':', label='95% Upper Bound')
+    plt.axhline(y=chi2.ppf(0.025, df=6), color='b', linestyle=':', label='95% Lower Bound')
+    plt.title(f"{drone} Normalized Estimation Error Squared vs Time for Position and Velocity")
+    plt.xlabel("Time (s)")
+    plt.ylabel("NEES score")
+    plt.legend()
+    plt.grid(True)
+
+# plot_metrics(ts_f1, follower_1_hist[:-1], f1_cov_hist[:-1], "Follower 1")
+# plot_metrics(ts_f2, follower_2_hist[:-1], f2_cov_hist[:-1], "Follower 2")
+# plot_metrics(ts_m, leader_hist[:-1], leader_cov_hist[:-1], "Leader")
 
 plt.show()

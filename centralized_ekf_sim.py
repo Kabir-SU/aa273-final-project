@@ -273,21 +273,24 @@ utils.plot_drone_trajectory_3d(
     times,
     mu_hist[:, 0:6],
     true_states_leader,
-    drone_name="Leader"
+    landmark_pos,
+    drone_name="Leader",
 )
 
 utils.plot_drone_trajectory_3d(
     times,
     mu_hist[:, 6:12],
     true_states_follower_1,
-    drone_name="Follower 1"
+    landmark_pos,
+    drone_name="Follower 1",
 )
 
 utils.plot_drone_trajectory_3d(
     times,
     mu_hist[:, 12:18],
     true_states_follower_2,
-    drone_name="Follower 2"
+    landmark_pos,
+    drone_name="Follower 2",
 )
 
 plt.show()
